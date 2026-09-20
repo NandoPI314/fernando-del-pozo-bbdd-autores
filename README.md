@@ -34,7 +34,21 @@ docker exec -it authors_db psql -U authors -d authors_db
 ```
 
 El informe de calidad se regenera en cada ejecución en
-[`reports/informe_calidad.md`](./reports/informe_calidad.md).
+[`reports/informe_calidad.md`](./reports/informe_calidad.md). Un export ya
+generado de los 500 autores enriquecidos está en
+[`export/authors_db.sql`](./export/authors_db.sql) (`pg_dump` del esquema
+`core`), por si prefieres revisarlo sin levantar Docker:
+
+```bash
+docker exec -i authors_db psql -U authors -d authors_db < export/authors_db.sql
+```
+
+`raw.api_response` (el JSON crudo de cada llamada a Wikidata/Open Library) no
+se incluye en el export plano: son ~125 MB porque `wbgetentities` devuelve
+todas las declaraciones de cada entidad en Wikidata, no solo las 4 que se usan
+(nacimiento, muerte, ocupación, nacionalidad). Sigue disponible consultando la
+base de datos en marcha (`docker exec -it authors_db psql ...`) para quien
+quiera auditar una respuesta concreta.
 
 ## Arquitectura
 
@@ -89,6 +103,12 @@ Si una fila falla (red, JSON inesperado...) se captura, se guarda en
 - En la misma línea, campos que cambian con el tiempo (`ol_work_count`,
   popularidad) no se re-consultan una vez enriquecidos: no hay un mecanismo de
   caducidad/TTL para volver a pedirlos periódicamente.
+- La llamada a Wikidata para resolver el nombre de la nacionalidad pedía
+  `props=claims|labels` cuando solo hacía falta `labels` — se corrigió en el
+  código, pero los datos de `raw.api_response` ya cargados en esta ejecución
+  no se han vuelto a pedir con la llamada optimizada (no aporta nada distinto
+  a `core.author`, solo ahorra espacio en `raw`); una ejecución desde cero con
+  el código actual generaría una tabla `raw` bastante más pequeña.
 
 ## Estructura del repositorio
 

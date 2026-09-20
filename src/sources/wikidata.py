@@ -102,13 +102,13 @@ def _search_candidates(conn, name: str, language: str) -> list[dict]:
     return data.get("search", [])
 
 
-def _get_entity(conn, name: str, qid: str) -> dict:
+def _get_entity(conn, name: str, qid: str, props: str = "claims|labels") -> dict:
     status, data = http_client.get_json(
         SEARCH_URL,
         params={
             "action": "wbgetentities",
             "ids": qid,
-            "props": "claims|labels",
+            "props": props,
             "languages": "en|es",
             "format": "json",
         },
@@ -120,7 +120,11 @@ def _get_entity(conn, name: str, qid: str) -> dict:
 def _resolve_label(conn, name: str, qid: str) -> str | None:
     if qid in _label_cache:
         return _label_cache[qid]
-    entity = _get_entity(conn, name, qid)
+    # Solo se necesita el nombre, no las declaraciones (claims) de la entidad.
+    # Pedir "claims" aquí es especialmente caro: entidades de países/lugares
+    # en Wikidata suelen tener miles de declaraciones (población histórica,
+    # relaciones diplomáticas...) que no se usan para nada en este caso.
+    entity = _get_entity(conn, name, qid, props="labels")
     labels = entity.get("labels", {})
     label = (labels.get("es") or labels.get("en") or {}).get("value")
     _label_cache[qid] = label
