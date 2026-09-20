@@ -27,11 +27,26 @@ docker exec authors_db psql -U authors -d authors_db -c \
 docker compose run --rm pipeline
 ```
 
-Para consultar la base de datos resultante:
+Para consultar la base de datos resultante por línea de comandos:
 
 ```bash
 docker exec -it authors_db psql -U authors -d authors_db
 ```
+
+O con un cliente gráfico como **DBeaver** (o cualquier otro cliente PostgreSQL):
+el puerto 5432 queda expuesto al host en `docker-compose.yml`, así que basta con
+crear una conexión PostgreSQL normal con estos datos (los mismos de `.env`):
+
+| Campo | Valor |
+|---|---|
+| Host | `localhost` |
+| Port | `5432` |
+| Database | `authors_db` |
+| Username | `authors` |
+| Password | `authors` |
+
+Las tablas están en los esquemas `raw` y `core`, no en `public` — si el cliente
+no los muestra por defecto, activa la opción de mostrar todos los esquemas.
 
 El informe de calidad se regenera en cada ejecución en
 [`reports/informe_calidad.md`](./reports/informe_calidad.md). Un export ya
@@ -73,6 +88,18 @@ Si una fila falla (red, JSON inesperado...) se captura, se guarda en
 
 ## Decisiones técnicas (resumen)
 
+- **Se descartó un framework de manifiestos genérico** (config declarativa de
+  origen/destino/tipos por tabla) para ingestar y transformar cualquier fuente
+  futura. Con una sola entidad ("autor") y 3 fuentes conocidas, era resolver un
+  problema hipotético a costa de tiempo que el enunciado no pedía y que no deja
+  una solución más fácil de verificar. En su lugar, cada fuente es un script
+  explícito en `src/sources/<fuente>.py` con el mismo patrón (fetch → guarda
+  raw → parsea → actualiza `core.author`); añadir una fuente es copiar ese
+  patrón, no configurar un motor.
+- **Se descartó un sistema de alertas activo** en favor de `core.run_log`
+  (filas OK/error y duración por paso, consultable por SQL) más logging a
+  consola y fichero. Para un entregable de una sola ejecución, sin nadie
+  monitorizando en producción, alertas activas eran coste sin beneficio real.
 - **Wikidata como fuente de identidad, no la primera fuente "de contenido"**:
   con 500 nombres hay riesgo real de homónimos y pseudónimos (p. ej. "Azorín").
   Sin un ID canónico fiable, cualquier otro dato enganchado a ese autor no es
@@ -118,5 +145,6 @@ sql/                              esquema de raw y core
 src/                              pipeline Python (orquestación + fuentes)
 data/errors/                      filas que fallaron, para inspección
 reports/informe_calidad.md        informe de calidad, generado automáticamente
+export/authors_db.sql             export de la BBDD ya generado (esquema core)
 ai-usage/                         registro de uso de IA y decisiones
 ```
